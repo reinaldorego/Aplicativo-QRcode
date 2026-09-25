@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Leitor QR</title>
+<meta name="theme-color" content="#0E1230">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Leitor QR">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js" defer></script>
+<style>
+:root{--noite:#0E1230;--indigo:#3B3FE0;--menta:#4FE3C1;--pessego:#FFB88C;--nevoa:#F3F4FF;--tinta:#161A45;--vidro:rgba(22,26,74,.55)}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--noite);color:#fff;font:400 16px/1.4 'Bricolage Grotesque',system-ui,sans-serif;overflow:hidden}
+button,input{font:inherit;color:inherit}
+video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover}
+.glass{background:var(--vidro);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.14)}
+.frame{position:fixed;left:50%;top:44%;width:min(72vw,340px);aspect-ratio:1;transform:translate(-50%,-50%);border-radius:32px;box-shadow:0 0 0 100vmax rgba(14,18,48,.72);transition:transform .35s cubic-bezier(.2,.9,.3,1.25)}
+.frame i{position:absolute;width:46px;height:46px;border:5px solid #fff;transition:border-color .2s}
+.frame i:nth-child(1){top:-3px;left:-3px;border-right:0;border-bottom:0;border-radius:32px 0 0 0}
+.frame i:nth-child(2){top:-3px;right:-3px;border-left:0;border-bottom:0;border-radius:0 32px 0 0}
+.frame i:nth-child(3){bottom:-3px;left:-3px;border-right:0;border-top:0;border-radius:0 0 0 32px}
+.frame i:nth-child(4){bottom:-3px;right:-3px;border-left:0;border-top:0;border-radius:0 0 32px 0}
+.laser{position:absolute;left:10%;right:10%;height:3px;border-radius:3px;background:linear-gradient(90deg,transparent,var(--menta),transparent);animation:sweep 2.4s ease-in-out infinite alternate}
+@keyframes sweep{from{top:12%}to{top:88%}}
+.frame.hit{transform:translate(-50%,-50%) scale(.84)}
+.frame.hit i{border-color:var(--menta)}
+.frame.hit .laser{display:none}
+.frame.hit::after{content:'';position:absolute;inset:0;border-radius:32px;border:3px solid var(--menta);animation:ring .6s ease-out forwards}
+@keyframes ring{to{transform:scale(1.35);opacity:0}}
+.hint{position:fixed;left:0;right:0;top:calc(44% + min(36vw,170px) + 22px);text-align:center;font-weight:600;opacity:.85}
+.pill{position:fixed;top:calc(12px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;padding:6px 6px 6px 16px;border-radius:30px;white-space:nowrap}
+.pill b{font-weight:800;letter-spacing:-.01em}
+.pill span{font-size:14px;opacity:.85}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--pessego);flex:none}.dot.ok{background:var(--menta)}
+.pill button{width:36px;height:36px;border:0;border-radius:50%;background:rgba(255,255,255,.12);display:grid;place-items:center}
+.dock{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);display:flex;align-items:center;gap:18px;padding:10px 16px;border-radius:44px}
+.dock button{position:relative;width:52px;height:52px;border-radius:50%;border:0;background:transparent;display:grid;place-items:center}
+.dock button.on{background:rgba(255,255,255,.2)}
+.dock .main{width:72px;height:72px;background:linear-gradient(145deg,var(--indigo),#6B5BFF);box-shadow:0 0 0 6px rgba(107,91,255,.28)}
+.main .p{display:none}.main.paused .p{display:block}.main.paused .q{display:none}
+#cnt{position:absolute;top:2px;right:0;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--pessego);color:var(--tinta);font-size:12px;font-weight:800;line-height:20px;font-style:normal}
+#msg{position:fixed;inset:0;display:grid;place-content:center;justify-items:center;gap:16px;text-align:center;padding:32px;background:var(--noite);z-index:5}
+#msg[hidden],[hidden]{display:none!important}
+#scrim{position:fixed;inset:0;z-index:10;background:rgba(14,18,48,.5);opacity:0;pointer-events:none;transition:opacity .25s}#scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:11;max-height:84dvh;overflow:auto;background:var(--nevoa);color:var(--tinta);border-radius:28px 28px 0 0;padding:12px 20px calc(24px + env(safe-area-inset-bottom));animation:up .32s cubic-bezier(.2,.9,.3,1)}
+@keyframes up{from{transform:translateY(100%)}}
+.grab{width:44px;height:5px;border-radius:5px;background:#C9CCF0;margin:0 auto 16px}
+h2{font-size:20px;font-weight:800;margin-bottom:12px}
+.tag{display:inline-block;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600;margin-right:6px}
+.tag.ok{background:#CFF7EC;color:#0B6B57}.tag.pend{background:#FFE6D6;color:#8A4A22}.tag.busy,.tag.k{background:#E2E4FA}
+#rt{font-size:22px;font-weight:600;line-height:1.25;word-break:break-word;margin:14px 0 18px;max-height:30dvh;overflow:auto}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.btn{flex:1;min-width:120px;border:0;border-radius:16px;padding:14px 16px;font-weight:600;background:var(--indigo);color:#fff}
+.btn.alt{background:#E2E4FA;color:var(--tinta)}
+ul{list-style:none;padding:0}
+li{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #DDE0F7}
+li.empty{display:block;opacity:.7;border:0}
+li .d{width:10px;height:10px;border-radius:50%;margin-top:7px;flex:none;background:var(--pessego)}li .d.ok{background:var(--menta)}
+li p{word-break:break-all;font-weight:600}li small{display:flex;gap:10px;opacity:.65}
+label{display:block;font-weight:600;font-size:14px;margin:14px 0 6px}
+input[type=text],input[type=url],input[type=password]{width:100%;border:2px solid #D4D7F5;border-radius:14px;padding:12px 14px;background:#fff;color:var(--tinta)}
+input:focus-visible,button:focus-visible{outline:3px solid var(--menta);outline-offset:2px}
+.sw{display:flex;align-items:center;justify-content:space-between;margin:16px 0}.sw label{margin:0}
+.sw input{width:26px;height:26px;accent-color:var(--indigo)}
+.credit{margin-top:18px;text-align:center;font-size:13px;opacity:.6}
+#toast{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom));transform:translate(-50%,20px);z-index:20;padding:10px 18px;border-radius:22px;background:#fff;color:var(--tinta);font-weight:600;opacity:0;pointer-events:none;transition:.25s;max-width:88vw;text-align:center}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+@media(prefers-reduced-motion:reduce){.laser{animation:none;top:50%}*{animation-duration:.01s!important;transition:none!important}}
+</style>
+</head>
+<body>
+<video id="v" playsinline muted></video>
+<div class="frame" id="frame"><i></i><i></i><i></i><i></i><div class="laser"></div></div>
+<p class="hint">Aponte para um QR code</p>
+
+<header class="pill glass"><b>Leitor QR</b><i class="dot" id="dot"></i><span id="stt">Sem planilha</span>
+<button id="bCfg" aria-label="Ajustes"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button></header>
+
+<nav class="dock glass">
+<button id="bTorch" aria-label="Lanterna"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></button>
+<button id="bMain" class="main" aria-label="Pausar ou retomar leitura">
+<svg class="q" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M8 12h8"/></svg>
+<svg class="p" width="30" height="30" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="#fff"/></svg></button>
+<button id="bHis" aria-label="Histórico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg><em id="cnt" hidden>0</em></button>
+</nav>
+
+<div id="msg" hidden><h2>Precisamos da câmera</h2><p>Permita o acesso à câmera para ler QR codes. Nada é enviado além do texto lido.</p><button class="btn" id="bCam" style="flex:none">Permitir câmera</button></div>
+
+<div id="scrim"></div>
+
+<section class="sheet" id="s-res" hidden><div class="grab"></div>
+<span class="tag k" id="rk"></span><span class="tag" id="rs"></span>
+<p id="rt"></p>
+<div class="row"><button class="btn" id="rOpen" hidden>Abrir link</button><button class="btn alt" id="rCopy">Copiar</button><button class="btn" id="rSend" hidden>Salvar na planilha</button></div>
+<div class="row" style="margin-top:10px"><button class="btn alt" id="rNext">Ler outro</button></div></section>
+
+<section class="sheet" id="s-his" hidden><div class="grab"></div><h2>Leituras</h2>
+<div class="row" style="margin-bottom:6px"><button class="btn" id="hFlush">Enviar pendentes</button><button class="btn alt" id="hClear">Limpar</button></div>
+<ul id="hl"></ul></section>
+
+<section class="sheet" id="s-cfg" hidden><div class="grab"></div><h2>Ajustes</h2>
+<label for="cUrl">Link da planilha (Apps Script)</label><input type="url" id="cUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+<label for="cKey">Chave secreta (opcional)</label><input type="password" id="cKey" autocomplete="off">
+<label for="cTag">Etiqueta das leituras (ex.: turma 601)</label><input type="text" id="cTag">
+<div class="sw"><label for="cAuto">Salvar automaticamente após cada leitura</label><input type="checkbox" id="cAuto"></div>
+<div class="row"><button class="btn alt" id="cTest">Testar conexão</button><button class="btn" id="cSave">Salvar ajustes</button></div>
+<p class="credit">Criado por Reinaldo</p></section>
+
+<div id="toast" role="status"></div>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
+const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
+let cfg=Object.assign({url:'',key:'',tag:'',auto:true},ld('cfg',{})),hist=ld('hist',[]);
+let stream,track,running=false,looping=false,last={v:'',t:0},torch=false,det=null;
+try{if('BarcodeDetector' in window)det=new BarcodeDetector({formats:['qr_code']})}catch{}
+const kind=t=>/^https?:\/\//i.test(t)?'Link':/^WIFI:/i.test(t)?'Wi-Fi':/^(mailto:|tel:|smsto:|BEGIN:VCARD)/i.test(t)?'Contato':'Texto';
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=ts=>new Date(ts).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('on'),2400)}
+function beep(){try{const a=new(window.AudioContext||webkitAudioContext)(),o=a.createOscillator(),g=a.createGain();o.frequency.value=880;g.gain.value=.08;o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+.09)}catch{}}
+function saveH(){hist=hist.slice(0,300);sv('hist',hist);badge()}
+function badge(){const n=hist.filter(h=>!h.sent).length;$('#cnt').textContent=n;$('#cnt').hidden=!n;$('#dot').classList.toggle('ok',!!cfg.url);$('#stt').textContent=cfg.url?(n?n+' pendente'+(n>1?'s':''):'Planilha conectada'):'Sem planilha'}
+
+/* Câmera e leitura */
+async function start(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
+    const v=$('#v');v.srcObject=stream;await v.play();track=stream.getVideoTracks()[0];
+    $('#msg').hidden=true;$('#bTorch').hidden=!(track.getCapabilities?.().torch);go();
+  }catch{$('#msg').hidden=false}
+}
+function go(){running=true;if(!looping){looping=true;loop()}}
+async function loop(){
+  if(!running){looping=false;return}
+  const v=$('#v');
+  if(v.readyState>=2){
+    let val=null;
+    try{
+      if(det){const r=await det.detect(v);if(r[0])val=r[0].rawValue}
+      else if(window.jsQR){
+        const s=Math.min(1,640/v.videoWidth),w=v.videoWidth*s|0,h=v.videoHeight*s|0,c=loop.c||(loop.c=document.createElement('canvas')),x=c.getContext('2d',{willReadFrequently:true});
+        c.width=w;c.height=h;x.drawImage(v,0,0,w,h);const q=jsQR(x.getImageData(0,0,w,h).data,w,h,{inversionAttempts:'dontInvert'});if(q)val=q.data;
+      }
+    }catch{}
+    if(val&&running)onCode(val);
+  }
+  setTimeout(()=>requestAnimationFrame(loop),det?80:150);
+}
+function onCode(v){
+  const n=Date.now();if(v===last.v&&n-last.t<3000)return;last={v,t:n};running=false;
+  navigator.vibrate?.(60);beep();$('#frame').classList.add('hit');
+  const r={id:n.toString(36)+Math.random().toString(36).slice(2,6),ts:n,text:v,type:kind(v),tag:cfg.tag,sent:false};
+  hist.unshift(r);saveH();showRes(r);if(cfg.auto&&cfg.url)push(r);
+}
+
+/* Envio para a planilha */
+async function send(r){
+  if(!cfg.url)return false;
+  try{
+    const res=await fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:cfg.key,id:r.id,ts:r.ts,text:r.text,type:r.type,tag:r.tag})});
+    const j=await res.json();if(!j.ok)throw 0;r.sent=true;saveH();return true;
+  }catch{return false}
+}
+async function push(r){
+  setSt(r,1);const ok=await send(r);setSt(r);
+  toast(ok?'Salva na planilha':cfg.url?'Sem conexão. Fica pendente e envia depois.':'Configure a planilha em Ajustes');return ok;
+}
+async function flush(){if(!cfg.url||!navigator.onLine)return;for(const h of hist.filter(x=>!x.sent).reverse()){if(!await send(h))break}badge()}
+
+/* Painéis */
+function open(id){$$('.sheet').forEach(s=>s.hidden=s.id!==id);$('#scrim').classList.add('on');document.body.dataset.sheet=id}
+function closeS(){
+  const was=document.body.dataset.sheet;$$('.sheet').forEach(s=>s.hidden=true);$('#scrim').classList.remove('on');document.body.dataset.sheet='';
+  if(was==='s-res'){$('#frame').classList.remove('hit');if(!$('#bMain').classList.contains('paused'))go()}
+}
+function setSt(r,busy){const e=$('#rs');e.className='tag '+(busy?'busy':r.sent?'ok':'pend');e.textContent=busy?'Enviando…':r.sent?'Salva na planilha':'Pendente';$('#rSend').hidden=!!(r.sent||busy)}
+function showRes(r){
+  $('#rk').textContent=r.type;$('#rt').textContent=r.text;setSt(r);
+  $('#rOpen').hidden=r.type!=='Link';$('#rOpen').onclick=()=>window.open(r.text,'_blank','noopener');
+  $('#rCopy').onclick=()=>navigator.clipboard?.writeText(r.text).then(()=>toast('Copiado'));
+  $('#rSend').onclick=()=>push(r);open('s-res');
+}
+function showHis(){
+  $('#hl').innerHTML=hist.length?hist.slice(0,60).map(h=>`<li><i class="d ${h.sent?'ok':''}"></i><div><p>${esc(h.text.slice(0,90))}</p><small><b>${h.type}</b><span>${fmt(h.ts)}</span>${h.tag?`<span>${esc(h.tag)}</span>`:''}</small></div></li>`).join(''):'<li class="empty">Nenhuma leitura ainda. Aponte a câmera para um QR code.</li>';
+  open('s-his');
+}
+function showCfg(){$('#cUrl').value=cfg.url;$('#cKey').value=cfg.key;$('#cTag').value=cfg.tag;$('#cAuto').checked=cfg.auto;open('s-cfg')}
+
+/* Eventos */
+$('#scrim').onclick=closeS;$('#rNext').onclick=closeS;
+$('#bHis').onclick=showHis;$('#bCfg').onclick=showCfg;$('#bCam').onclick=start;
+$('#hFlush').onclick=async()=>{toast('Enviando pendentes…');await flush();showHis();toast('Pronto')};
+$('#hClear').onclick=()=>{if(confirm('Apagar o histórico deste aparelho? A planilha não é alterada.')){hist=[];saveH();showHis()}};
+$('#cSave').onclick=()=>{cfg={url:$('#cUrl').value.trim(),key:$('#cKey').value.trim(),tag:$('#cTag').value.trim(),auto:$('#cAuto').checked};sv('cfg',cfg);badge();closeS();toast('Ajustes salvos');flush()};
+$('#cTest').onclick=async()=>{try{const j=await(await fetch($('#cUrl').value.trim())).json();toast(j.ok?'Conexão funcionando':'Resposta inesperada')}catch{toast('Não consegui conectar. Confira o link.')}};
+$('#bMain').onclick=e=>{const b=e.currentTarget;if(running){running=false;b.classList.add('paused')}else{b.classList.remove('paused');go()}};
+$('#bTorch').onclick=async()=>{try{torch=!torch;await track.applyConstraints({advanced:[{torch}]});$('#bTorch').classList.toggle('on',torch)}catch{torch=false;toast('Lanterna indisponível neste aparelho')}};
+addEventListener('online',flush);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&(!track||track.readyState==='ended'))start()});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+badge();start();flush();
+</script>
+</body>
+</html>
